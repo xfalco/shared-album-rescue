@@ -25,20 +25,26 @@ baked in, in the same spirit as BackupManager's `BackupConfiguration`. Override 
 Intended sequence:
 
 ```bash
-swift build -c release
-BIN=.build/release/shared-album-rescue
+./Scripts/build-app.sh        # builds release AND wraps it in SharedAlbumRescue.app
+BIN=./SharedAlbumRescue.app/Contents/MacOS/shared-album-rescue
 
 $BIN scan                     # inventory (safe, run anytime)
 $BIN rescue --dry-run         # see the staging plan
 $BIN rescue                   # stage from live cache + Dec-2025 backup
 $BIN archive-comments         # save the comments/likes archive
-$BIN download --limit 20      # first PhotoKit run: expect the Photos permission prompt
+$BIN download --limit 20      # first PhotoKit run: approve the “SharedAlbumRescue” Photos prompt
 $BIN download                 # fetch everything still cloud-only
 $BIN import --dry-run         # see the import plan
 $BIN import --limit 20        # first supervised import
 $BIN import                   # the rest
 $BIN verify                   # should now exit 0
 ```
+
+The database-only commands (`scan`, `rescue`, `archive-comments`, `verify`) also run fine
+as the bare `.build/release/shared-album-rescue`. The PhotoKit commands (`download`,
+`import`) must run through the `.app` wrapper: photolibraryd refuses XPC connections from
+bundle-less binaries with endless `NSCocoaErrorDomain Code=4097` CoreData retries and
+never shows the permission prompt.
 
 ## Safety model
 
@@ -57,9 +63,24 @@ $BIN verify                   # should now exit 0
 ## Status / caveats
 
 - `scan`, `rescue`, `archive-comments`, `verify`: exercised against the real library.
-- `download`, `import`: **written but not yet run** — the first run triggers the
-  one-time Photos permission prompt (attributed to your terminal app), and `import`
-  mutates the library. Start with `--limit 20` and eyeball the result in Photos.
+- `download`, `import`: **written but not yet run end-to-end** — run them via
+  `SharedAlbumRescue.app` (see above), approve the Photos prompt, and start with
+  `--limit 20`, eyeballing the result before going wide. `import` mutates the library.
+- The ad-hoc app signature changes on every rebuild, so macOS re-asks the Photos
+  permission question after each `./Scripts/build-app.sh`. Approve once per build.
+
+## Troubleshooting
+
+- **Endless `CoreData: XPC … Code=4097` retries, no prompt** — you ran a PhotoKit
+  command through a binary without bundle identity. Use
+  `./SharedAlbumRescue.app/Contents/MacOS/shared-album-rescue`, rebuilt by
+  `./Scripts/build-app.sh`.
+- **“Photos access not granted”** — System Settings → Privacy & Security → Photos →
+  enable SharedAlbumRescue (re-grant after rebuilds).
+- **“PhotoKit returned zero cloud-shared albums”** — Photos → Settings → iCloud →
+  make sure “Shared Albums” is on.
+- **Some assets report “no PhotoKit match”** — the album was deleted/left since the
+  scan, or Photos hasn't synced it on this Mac; open Photos and check the sidebar.
 - Shared copies are what Apple stores: ~2048px-class photos, 720p videos, others' GPS
   mostly stripped. True originals only exist with the original contributors.
 - Imported items upload to iCloud Photos and count against its quota (expect roughly

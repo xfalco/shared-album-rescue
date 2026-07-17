@@ -48,7 +48,8 @@ struct Download: AsyncParsableCommand {
 
         try await requirePhotosAccess()
         print("Matching assets via PhotoKit…")
-        let assetsByUUID = fetchSharedAssetsByUUID()
+        let (assetsByUUID, collectionCount) = try fetchSharedAssetsByUUID()
+        print("PhotoKit sees \(collectionCount) cloud-shared album(s), \(assetsByUUID.count) asset(s).")
 
         var manifest = state.loadManifest()
         var downloaded = 0
