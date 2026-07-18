@@ -32,19 +32,24 @@ $BIN scan                     # inventory (safe, run anytime)
 $BIN rescue --dry-run         # see the staging plan
 $BIN rescue                   # stage from live cache + Dec-2025 backup
 $BIN archive-comments         # save the comments/likes archive
-$BIN download --limit 20      # first PhotoKit run: approve the “SharedAlbumRescue” Photos prompt
-$BIN download                 # fetch everything still cloud-only
-$BIN import --dry-run         # see the import plan
-$BIN import --limit 20        # first supervised import
-$BIN import                   # the rest
+
+./Scripts/run.sh download --limit 20   # first PhotoKit run: approve the Photos prompt
+./Scripts/run.sh download              # fetch everything still cloud-only
+./Scripts/run.sh import --dry-run      # see the import plan
+./Scripts/run.sh import --limit 20     # first supervised import
+./Scripts/run.sh import                # the rest
+
 $BIN verify                   # should now exit 0
 ```
 
 The database-only commands (`scan`, `rescue`, `archive-comments`, `verify`) also run fine
 as the bare `.build/release/shared-album-rescue`. The PhotoKit commands (`download`,
-`import`) must run through the `.app` wrapper: photolibraryd refuses XPC connections from
-bundle-less binaries with endless `NSCocoaErrorDomain Code=4097` CoreData retries and
-never shows the permission prompt.
+`import`) must go through `./Scripts/run.sh`, which launches the signed
+`SharedAlbumRescue.app` via LaunchServices and routes output back to your terminal:
+photolibraryd vets the connecting process and refuses shell-spawned clients — even the
+bundled binary exec'd directly — with endless `NSCocoaErrorDomain Code=4097` CoreData
+retries. Terminal choice matters for the one-time prompts too: Terminal.app showed them;
+iTerm2 silently didn't.
 
 ## Safety model
 
@@ -71,10 +76,12 @@ never shows the permission prompt.
 
 ## Troubleshooting
 
-- **Endless `CoreData: XPC … Code=4097` retries, no prompt** — you ran a PhotoKit
-  command through a binary without bundle identity. Use
-  `./SharedAlbumRescue.app/Contents/MacOS/shared-album-rescue`, rebuilt by
-  `./Scripts/build-app.sh`.
+- **Endless `CoreData: XPC … Code=4097` retries** — photolibraryd refused the process.
+  Run PhotoKit commands only via `./Scripts/run.sh` (LaunchServices launch of the signed
+  app). Exec'ing the binary from a shell — bare or inside the .app — gets refused even
+  after the Photos permission is granted.
+- **No permission prompts appear at all** — use Terminal.app for the first run of a
+  fresh build; iTerm2 has been observed to suppress/never-show the prompts.
 - **“Photos access not granted”** — System Settings → Privacy & Security → Photos →
   enable SharedAlbumRescue (re-grant after rebuilds).
 - **“PhotoKit returned zero cloud-shared albums”** — Photos → Settings → iCloud →
