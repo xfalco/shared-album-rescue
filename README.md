@@ -30,6 +30,7 @@ tracked with paths relative to the state root, so moving the whole directory is 
 | `import` | Imports staged files into Photos, into `SA – <album>` albums, with dedup + ledger. | **Photos library** |
 | `archive-comments` | Dumps shared-album comments/likes/captions to `state/comments-archive.json`. | nothing (read-only) |
 | `verify` | Exits non-zero while any others' asset is still cloud-only. | nothing (read-only) |
+| `sync-status` | iCloud sync health: pending uploads, down-sync liveness, engine timestamps. `--shared-albums` reports shared-album cache and rescue coverage instead. | nothing (read-only) |
 
 Intended sequence:
 

@@ -56,7 +56,7 @@ struct PhotosDBTests {
         CREATE TABLE ZASSET (Z_PK INTEGER PRIMARY KEY, ZUUID TEXT, ZCLOUDASSETGUID TEXT, ZDIRECTORY TEXT,
             ZFILENAME TEXT, ZCLOUDISMYASSET INTEGER, ZKIND INTEGER, ZWIDTH INTEGER, ZHEIGHT INTEGER,
             ZDURATION REAL, ZLATITUDE REAL, ZDATECREATED REAL, ZCLOUDOWNERHASHEDPERSONID TEXT,
-            ZBUNDLESCOPE INTEGER, ZTRASHEDSTATE INTEGER);
+            ZBUNDLESCOPE INTEGER, ZTRASHEDSTATE INTEGER, ZCLOUDLOCALSTATE INTEGER, ZADDEDDATE REAL);
         CREATE TABLE ZADDITIONALASSETATTRIBUTES (Z_PK INTEGER PRIMARY KEY, ZASSET INTEGER, ZORIGINALFILENAME TEXT);
         CREATE TABLE ZCLOUDSHAREDCOMMENT (Z_PK INTEGER PRIMARY KEY, ZISLIKE INTEGER, ZISCAPTION INTEGER,
             ZISMYCOMMENT INTEGER, ZCOMMENTDATE REAL, ZCOMMENTTEXT TEXT, ZCOMMENTERHASHEDPERSONID TEXT,
@@ -65,9 +65,9 @@ struct PhotosDBTests {
         INSERT INTO ZSHARE VALUES (2, 'Subscribed Album', 'SCOPE-B', 3, 0);
         INSERT INTO ZSHAREPARTICIPANT VALUES (1, 1, 1, 1);
         INSERT INTO ZSHAREPARTICIPANT VALUES (2, 2, 1, 2);
-        INSERT INTO ZASSET VALUES (10, 'UUID-1', 'GUID-1', 'person/SCOPE-A', 'x.JPG', 0, 0, 2048, 1536, 0, -180, 700000000, 'hash1', 2, 0);
-        INSERT INTO ZASSET VALUES (11, 'UUID-2', 'GUID-2', 'person/SCOPE-B', 'y.MOV', 1, 1, 1280, 720, 12.5, 45.0, NULL, NULL, 2, 0);
-        INSERT INTO ZASSET VALUES (12, 'UUID-3', 'GUID-3', '0', 'lib.HEIC', 0, 0, 4032, 3024, 0, -180, 700000100, NULL, 0, 0);
+        INSERT INTO ZASSET VALUES (10, 'UUID-1', 'GUID-1', 'person/SCOPE-A', 'x.JPG', 0, 0, 2048, 1536, 0, -180, 700000000, 'hash1', 2, 0, 0, 700000010);
+        INSERT INTO ZASSET VALUES (11, 'UUID-2', 'GUID-2', 'person/SCOPE-B', 'y.MOV', 1, 1, 1280, 720, 12.5, 45.0, NULL, NULL, 2, 0, 0, NULL);
+        INSERT INTO ZASSET VALUES (12, 'UUID-3', 'GUID-3', '0', 'lib.HEIC', 0, 0, 4032, 3024, 0, -180, 700000100, NULL, 0, 0, 1, 700000100);
         INSERT INTO ZADDITIONALASSETATTRIBUTES VALUES (1, 10, 'IMG_0001.JPG');
         INSERT INTO ZADDITIONALASSETATTRIBUTES VALUES (2, 12, 'IMG_0002.HEIC');
         INSERT INTO ZCLOUDSHAREDCOMMENT VALUES (1, 0, 0, 0, 700000050, 'lovely', 'hash1', 10, NULL);
@@ -98,6 +98,15 @@ struct PhotosDBTests {
         let video = try #require(assets.first { $0.cloudGUID == "GUID-2" })
         #expect(video.isVideo && video.isMine && video.hasLocation)
         #expect(video.captureDate == nil)
+        #expect(photo.addedDate != nil)
+        #expect(video.addedDate == nil)
+
+        let sync = try db.librarySyncCounts()
+        #expect(sync.total == 1)
+        #expect(sync.synced == 1)
+        #expect(sync.awaitingUpload == 0)
+        #expect(sync.addedLastWeek == 0)
+        #expect(sync.newestAdded != nil)
 
         let index = try db.libraryDedupIndex()
         #expect(index.contains("img_0002.heic|700000100"))

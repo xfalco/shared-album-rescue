@@ -32,6 +32,7 @@ struct SharedAsset {
     let captureDate: Date?
     let originalFilename: String?
     let contributorID: String?
+    let addedDate: Date?
 
     var scopeID: String {
         guard let slash = directory.firstIndex(of: "/") else { return directory }
@@ -44,6 +45,16 @@ struct SharedAsset {
             .appendingPathComponent(directory)
             .appendingPathComponent(filename)
     }
+}
+
+struct LibrarySyncCounts {
+    let total: Int
+    let synced: Int
+    let awaitingUpload: Int
+    let otherStates: [(state: Int64, count: Int)]
+    let addedLastDay: Int
+    let addedLastWeek: Int
+    let newestAdded: Date?
 }
 
 struct SharedComment {
@@ -167,7 +178,8 @@ extension PhotosDB {
         try query("""
             SELECT a.Z_PK, a.ZUUID, a.ZCLOUDASSETGUID, a.ZDIRECTORY, a.ZFILENAME,
                    a.ZCLOUDISMYASSET, a.ZKIND, a.ZWIDTH, a.ZHEIGHT, a.ZDURATION,
-                   a.ZLATITUDE, a.ZDATECREATED, aa.ZORIGINALFILENAME, a.ZCLOUDOWNERHASHEDPERSONID
+                   a.ZLATITUDE, a.ZDATECREATED, aa.ZORIGINALFILENAME, a.ZCLOUDOWNERHASHEDPERSONID,
+                   a.ZADDEDDATE
             FROM ZASSET a
             LEFT JOIN ZADDITIONALASSETATTRIBUTES aa ON aa.ZASSET = a.Z_PK
             WHERE a.ZBUNDLESCOPE = 2
@@ -186,9 +198,45 @@ extension PhotosDB {
                 hasLocation: row.double(10) > -180,
                 captureDate: row.isNull(11) ? nil : Format.appleDate(row.double(11)),
                 originalFilename: row.string(12),
-                contributorID: row.string(13)
+                contributorID: row.string(13),
+                addedDate: row.isNull(14) ? nil : Format.appleDate(row.double(14))
             )
         }
+    }
+
+    /// Upload/download health of the main library: ZCLOUDLOCALSTATE 0 = awaiting
+    /// upload, 1 = synced with iCloud; ZADDEDDATE tracks down-sync liveness.
+    func librarySyncCounts(now: Date = Date()) throws -> LibrarySyncCounts {
+        let states: [(Int64, Int)] = try query("""
+            SELECT ZCLOUDLOCALSTATE, COUNT(*) FROM ZASSET
+            WHERE ZBUNDLESCOPE = 0 AND ZTRASHEDSTATE = 0 GROUP BY 1
+            """) { ($0.int(0), Int($0.int(1))) }
+        let dayCut = now.timeIntervalSinceReferenceDate - 86_400
+        let weekCut = now.timeIntervalSinceReferenceDate - 7 * 86_400
+        let added = try query("""
+            SELECT SUM(ZADDEDDATE > \(dayCut)), SUM(ZADDEDDATE > \(weekCut)), MAX(ZADDEDDATE)
+            FROM ZASSET WHERE ZBUNDLESCOPE = 0 AND ZTRASHEDSTATE = 0
+            """) { row -> (Int, Int, Double?) in
+            (Int(row.int(0)), Int(row.int(1)), row.isNull(2) ? nil : row.double(2))
+        }.first
+
+        var total = 0
+        var synced = 0
+        var awaiting = 0
+        var other: [(state: Int64, count: Int)] = []
+        for (state, count) in states {
+            total += count
+            switch state {
+            case 0: awaiting += count
+            case 1: synced += count
+            default: other.append((state, count))
+            }
+        }
+        return LibrarySyncCounts(
+            total: total, synced: synced, awaitingUpload: awaiting, otherStates: other,
+            addedLastDay: added?.0 ?? 0, addedLastWeek: added?.1 ?? 0,
+            newestAdded: (added?.2).flatMap { $0 }.map { Format.appleDate($0) }
+        )
     }
 
     /// Keys of the form "lowercased-original-filename|capture-second" for every
