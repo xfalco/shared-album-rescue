@@ -45,6 +45,41 @@ struct ImportCommand: AsyncParsableCommand {
         }
         if let limit { candidates = Array(candidates.prefix(limit)) }
 
+        // Some shared-album items arrive from Apple's servers as JPEG stills wearing
+        // video filenames (the album-side video was lost and only its poster frame
+        // remains). Photos rejects the extension/content contradiction with error 3302,
+        // so normalize everything to an image: image bytes, .JPG staged file, .JPG name.
+        var posterOnly: [String] = []
+        candidates = candidates.map { item in
+            let stagedURL = state.absoluteURL(forStagedPath: item.stagedPath)
+            let movieExts = ["mov", "mp4", "m4v"]
+            let extLooksVideo = movieExts.contains(stagedURL.pathExtension.lowercased())
+                || movieExts.contains(((item.originalFilename ?? "") as NSString).pathExtension.lowercased())
+            guard item.isVideo || extLooksVideo, Self.looksLikeImage(stagedURL) else {
+                return item
+            }
+            posterOnly.append("\(item.originalFilename ?? item.guid) [\(item.album)]")
+            let fixedURL = stagedURL.deletingPathExtension().appendingPathExtension("JPG")
+            if !FileManager.default.fileExists(atPath: fixedURL.path) {
+                try? FileManager.default.copyItem(at: stagedURL, to: fixedURL)
+            }
+            return StagedItem(
+                guid: item.guid, album: item.album, albumScopeID: item.albumScopeID,
+                stagedPath: (item.stagedPath as NSString).deletingPathExtension + ".JPG",
+                pairedVideoPath: nil,
+                originalFilename: item.originalFilename.map { ($0 as NSString).deletingPathExtension + ".JPG" },
+                captureDate: item.captureDate,
+                isVideo: false, contributor: item.contributor,
+                source: item.source, bytes: item.bytes
+            )
+        }
+        if !posterOnly.isEmpty {
+            print("⚠️ \(posterOnly.count) item(s) carry video filenames but contain still images (the shared album lost the video; only its poster frame survives) — importing the stills:")
+            for label in posterOnly.prefix(10) {
+                print("   • \(label)")
+            }
+        }
+
         let byAlbum = Dictionary(grouping: candidates, by: \.album)
         print("Import plan: \(candidates.count) staged item(s) across \(byAlbum.count) album(s); \(duplicateSkips.count) skipped as already-in-library.")
         for (album, items) in byAlbum.sorted(by: { $0.value.count > $1.value.count }) {
@@ -141,6 +176,23 @@ struct ImportCommand: AsyncParsableCommand {
             }
             throw ExitCode(1)
         }
+    }
+
+    /// True when the file's magic bytes are a still image (JPEG/PNG/GIF/HEIF family).
+    private static func looksLikeImage(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url),
+              let head = try? handle.read(upToCount: 16), head.count >= 12 else {
+            return false
+        }
+        defer { try? handle.close() }
+        if head.prefix(2) == Data([0xFF, 0xD8]) { return true }                       // JPEG
+        if head.prefix(4) == Data([0x89, 0x50, 0x4E, 0x47]) { return true }           // PNG
+        if head.prefix(4) == Data([0x47, 0x49, 0x46, 0x38]) { return true }           // GIF
+        if head[4..<8] == Data("ftyp".utf8) {
+            let brand = String(decoding: head[8..<12], as: UTF8.self)
+            return ["heic", "heix", "mif1", "msf1", "avif"].contains(brand)           // HEIF family
+        }
+        return false
     }
 
     /// Creates library assets for the given staged items inside one atomic change

@@ -76,10 +76,10 @@ iTerm2 silently didn't.
 
 ## Status / caveats
 
-- `scan`, `rescue`, `archive-comments`, `verify`: exercised against the real library.
-- `download`, `import`: **written but not yet run end-to-end** — run them via
-  `SharedAlbumRescue.app` (see above), approve the Photos prompt, and start with
-  `--limit 20`, eyeballing the result before going wide. `import` mutates the library.
+- All commands verified end-to-end against the real library (Jul 2026): 9,332 of 9,333
+  others' assets secured — 8,961 imported into "SA – …" albums, 371 skipped as already
+  present, 1 unrecoverable (broken 1×1 record on Apple's side). Videos that exist only
+  as poster stills in the album are detected by content-sniffing and imported as photos.
 - The ad-hoc app signature changes on every rebuild, so macOS re-asks the Photos
   permission question after each `./Scripts/build-app.sh`. Approve once per build.
 
