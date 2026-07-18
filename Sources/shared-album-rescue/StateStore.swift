@@ -28,6 +28,9 @@ struct StateStore {
     let root: URL
 
     var stagingDir: URL { root.appendingPathComponent("staging") }
+    /// Scratch space for temporary Photos.sqlite copies — kept on the state volume so
+    /// multi-gigabyte database copies never land on the internal disk.
+    var tmpDir: URL { root.appendingPathComponent("tmp") }
     var scanReportURL: URL { root.appendingPathComponent("scan.json") }
     var commentsArchiveURL: URL { root.appendingPathComponent("comments-archive.json") }
     private var ledgerURL: URL { root.appendingPathComponent("imported-ledger.json") }

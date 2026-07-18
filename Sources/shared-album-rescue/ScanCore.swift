@@ -56,7 +56,7 @@ struct ScanCore {
     let state: StateStore
 
     func gather() throws -> (albums: [SharedAlbum], facts: [AssetFacts]) {
-        let db = try PhotosDB.openCopy(of: library)
+        let db = try PhotosDB.openCopy(of: library, scratchIn: state.tmpDir)
         let albums = try db.sharedAlbums()
         let assets = try db.sharedAssets()
         let albumsByScope = Dictionary(albums.map { ($0.scopeID, $0) }, uniquingKeysWith: { first, _ in first })
@@ -66,7 +66,7 @@ struct ScanCore {
         // cloud GUID.
         var backupFiles: [String: URL] = [:]
         if let backupLibrary {
-            let backupDB = try PhotosDB.openCopy(of: backupLibrary)
+            let backupDB = try PhotosDB.openCopy(of: backupLibrary, scratchIn: state.tmpDir)
             for backupAsset in try backupDB.sharedAssets() where !backupAsset.cloudGUID.isEmpty {
                 let url = backupAsset.fileURL(inLibrary: backupLibrary)
                 if FileManager.default.fileExists(atPath: url.path) {

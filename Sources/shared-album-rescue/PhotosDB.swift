@@ -67,16 +67,28 @@ final class PhotosDB {
     private var tempDir: URL?
 
     /// Opens a read-only copy of the library's Photos.sqlite. The sqlite trio is copied
-    /// to a private temp directory first so the live database (which photolibraryd keeps
-    /// writing) is never opened directly.
-    static func openCopy(of library: URL) throws -> PhotosDB {
+    /// into `scratchRoot` first so the live database (which photolibraryd keeps writing)
+    /// is never opened directly. Callers pass the state volume's tmp dir so the
+    /// multi-gigabyte copies stay off the internal disk; copies from crashed runs are
+    /// swept once they're a day old (a running command never holds one that long).
+    static func openCopy(of library: URL, scratchIn scratchRoot: URL) throws -> PhotosDB {
         let databaseDir = library.appendingPathComponent("database")
         let sqlite = databaseDir.appendingPathComponent("Photos.sqlite")
         guard FileManager.default.fileExists(atPath: sqlite.path) else {
             throw RescueError("No database/Photos.sqlite inside \(library.path) — is this a .photoslibrary?")
         }
-        let temp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("shared-album-rescue-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: scratchRoot, withIntermediateDirectories: true)
+        if let stale = try? FileManager.default.contentsOfDirectory(
+            at: scratchRoot, includingPropertiesForKeys: [.contentModificationDateKey]
+        ) {
+            for entry in stale {
+                let modified = (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+                if let modified, Date().timeIntervalSince(modified) > 86_400 {
+                    try? FileManager.default.removeItem(at: entry)
+                }
+            }
+        }
+        let temp = scratchRoot.appendingPathComponent("db-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
         for suffix in ["", "-wal", "-shm"] {
             let source = databaseDir.appendingPathComponent("Photos.sqlite\(suffix)")

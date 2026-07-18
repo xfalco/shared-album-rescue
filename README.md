@@ -11,6 +11,15 @@ Personal tool: default paths (live library on SecondLifeSSD, backup on Alexandri
 baked in, in the same spirit as BackupManager's `BackupConfiguration`. Override with
 `--library` / `--backup-library` / `--state`.
 
+Everything the tool writes — the staging area downloads land in, scan reports, the
+import ledger, comment archives, and the multi-gigabyte temporary `Photos.sqlite`
+copies — lives under one state root, which defaults to
+`/Volumes/SecondLifeSSD/second_life_data/xav/SharedAlbumRescue` so nothing bulky ever
+touches the internal disk. A mount guard refuses to run if that volume isn't mounted
+(otherwise macOS would silently create a plain folder at the `/Volumes/...` path on the
+internal disk and fill it). Point `--state` elsewhere to relocate; staged files are
+tracked with paths relative to the state root, so moving the whole directory is safe.
+
 ## Commands
 
 | Command | What it does | Touches |

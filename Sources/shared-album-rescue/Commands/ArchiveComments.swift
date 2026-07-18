@@ -20,7 +20,8 @@ struct ArchiveComments: ParsableCommand {
     }
 
     func run() throws {
-        let db = try PhotosDB.openCopy(of: options.libraryURL)
+        let state = try options.makeStateStore()
+        let db = try PhotosDB.openCopy(of: options.libraryURL, scratchIn: state.tmpDir)
         let albums = try db.sharedAlbums()
         let albumsByScope = Dictionary(albums.map { ($0.scopeID, $0.title) }, uniquingKeysWith: { first, _ in first })
         let persons = PersonDirectory(library: options.libraryURL)
@@ -37,7 +38,6 @@ struct ArchiveComments: ParsableCommand {
             )
         }
 
-        let state = options.stateStore
         try state.save(records, to: state.commentsArchiveURL)
 
         let likes = records.filter { $0.kind == "like" }.count

@@ -18,16 +18,16 @@ struct Rescue: ParsableCommand {
     var dryRun = false
 
     func run() throws {
+        let state = try options.makeStateStore()
         guard let backup = resolveBackupLibrary(backupLibrary) else {
             print("⚠️ No backup library found — staging from the live cache only.")
-            try stage(backup: nil)
+            try stage(backup: nil, state: state)
             return
         }
-        try stage(backup: backup)
+        try stage(backup: backup, state: state)
     }
 
-    private func stage(backup: URL?) throws {
-        let state = options.stateStore
+    private func stage(backup: URL?, state: StateStore) throws {
         let core = ScanCore(library: options.libraryURL, backupLibrary: backup, state: state)
         let (_, facts) = try core.gather()
         let persons = PersonDirectory(library: options.libraryURL)

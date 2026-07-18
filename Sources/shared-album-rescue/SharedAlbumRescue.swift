@@ -31,11 +31,38 @@ struct LibraryOptions: ParsableArguments {
     @Option(name: .long, help: "Path to the live Photos library (.photoslibrary).")
     var library: String = "/Volumes/SecondLifeSSD/second_life_data/xav/Photos Library.photoslibrary"
 
-    @Option(name: .long, help: "Directory holding state: scan reports, the staging area, and the import ledger.")
-    var state: String = "state"
+    @Option(name: .long, help: """
+    Directory holding everything the tool writes: the staging area downloads land in, scan \
+    reports, the import ledger, and temporary database copies. Defaults to the SecondLifeSSD \
+    drive so nothing bulky touches the internal disk.
+    """)
+    var state: String = "/Volumes/SecondLifeSSD/second_life_data/xav/SharedAlbumRescue"
 
     var libraryURL: URL { URL(fileURLWithPath: library) }
-    var stateStore: StateStore { StateStore(root: URL(fileURLWithPath: state)) }
+
+    /// Validates that the state directory sits on a real mounted volume before anything
+    /// writes to it: with the drive unplugged, a /Volumes/<name> path would silently
+    /// become a plain folder on the internal disk and fill it — the exact accident the
+    /// external state location exists to avoid.
+    func makeStateStore() throws -> StateStore {
+        let root = URL(fileURLWithPath: state).standardizedFileURL
+        if state.hasPrefix("/Volumes/") {
+            let components = root.pathComponents
+            guard components.count > 2 else {
+                throw RescueError("--state must point inside a volume, got \(state)")
+            }
+            let volume = URL(fileURLWithPath: "/Volumes").appendingPathComponent(components[2])
+            var isDirectory: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: volume.path, isDirectory: &isDirectory)
+            let volumeRoot = (try? volume.resourceValues(forKeys: [.volumeURLKey]))?.volume
+            guard exists, isDirectory.boolValue,
+                  volumeRoot?.standardizedFileURL.path == volume.standardizedFileURL.path else {
+                throw RescueError("State volume \(volume.path) is not mounted — connect the drive or pass --state.")
+            }
+        }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return StateStore(root: root)
+    }
 }
 
 /// Known locations of the pre-migration backup library that still holds shared-album

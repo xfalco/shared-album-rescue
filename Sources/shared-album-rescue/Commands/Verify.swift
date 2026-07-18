@@ -12,8 +12,9 @@ struct Verify: ParsableCommand {
     var backupLibrary: String?
 
     func run() throws {
+        let state = try options.makeStateStore()
         let backup = resolveBackupLibrary(backupLibrary)
-        let core = ScanCore(library: options.libraryURL, backupLibrary: backup, state: options.stateStore)
+        let core = ScanCore(library: options.libraryURL, backupLibrary: backup, state: state)
         let (albums, facts) = try core.gather()
         let report = core.report(albums: albums, facts: facts)
         let uncovered = report.totals.othersCloudOnly

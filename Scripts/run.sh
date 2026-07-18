@@ -14,11 +14,10 @@ if [ ! -d SharedAlbumRescue.app ]; then
     ./Scripts/build-app.sh
 fi
 
+# The compiled-in --state default is an absolute path on the Alexandria drive, so no
+# path fixing is needed here. If you pass --state yourself, make it absolute:
+# LaunchServices starts the app with cwd "/".
 ARGS=("$@")
-case " $* " in
-    *" --state "*) ;;
-    *) ARGS+=(--state "$PWD/state") ;;
-esac
 
 # `open -W` cannot reliably block on this bundle (no run loop to attach to), so we
 # poll for process exit ourselves. Exit status is not propagated by `open` — treat

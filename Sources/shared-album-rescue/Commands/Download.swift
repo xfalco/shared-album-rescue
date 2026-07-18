@@ -22,7 +22,7 @@ struct Download: AsyncParsableCommand {
     var dryRun = false
 
     func run() async throws {
-        let state = options.stateStore
+        let state = try options.makeStateStore()
         let core = ScanCore(library: options.libraryURL, backupLibrary: resolveBackupLibrary(nil), state: state)
         let (_, facts) = try core.gather()
         let persons = PersonDirectory(library: options.libraryURL)

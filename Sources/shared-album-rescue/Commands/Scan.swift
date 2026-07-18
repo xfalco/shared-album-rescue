@@ -18,12 +18,13 @@ struct Scan: ParsableCommand {
     var json = false
 
     func run() throws {
+        let state = try options.makeStateStore()
         let backup = noBackup ? nil : resolveBackupLibrary(backupLibrary)
-        let core = ScanCore(library: options.libraryURL, backupLibrary: backup, state: options.stateStore)
+        let core = ScanCore(library: options.libraryURL, backupLibrary: backup, state: state)
         let (albums, facts) = try core.gather()
         let report = core.report(albums: albums, facts: facts)
 
-        try options.stateStore.save(report, to: options.stateStore.scanReportURL)
+        try state.save(report, to: state.scanReportURL)
 
         if json {
             let encoder = JSONEncoder()
@@ -35,7 +36,7 @@ struct Scan: ParsableCommand {
             print("Backup  : \(report.backupLibraryPath ?? "(none found)")")
             print("Albums  : \(albums.count) shared (\(albums.filter(\.ownedByMe).count) owned by me)\n")
             ScanCore.printTable(report)
-            print("\nReport written to \(options.stateStore.scanReportURL.path)")
+            print("\nReport written to \(state.scanReportURL.path)")
         }
     }
 }

@@ -20,7 +20,7 @@ struct ImportCommand: AsyncParsableCommand {
     var dryRun = false
 
     func run() async throws {
-        let state = options.stateStore
+        let state = try options.makeStateStore()
         var ledger = state.loadLedger()
         let manifest = state.loadManifest()
 
@@ -31,7 +31,7 @@ struct ImportCommand: AsyncParsableCommand {
         // original filename + capture second already exist in the library.
         var duplicateSkips: [StagedItem] = []
         if !force {
-            let index = try PhotosDB.openCopy(of: options.libraryURL).libraryDedupIndex()
+            let index = try PhotosDB.openCopy(of: options.libraryURL, scratchIn: state.tmpDir).libraryDedupIndex()
             let (dupes, fresh) = candidates.reduce(into: ([StagedItem](), [StagedItem]())) { acc, item in
                 if let name = item.originalFilename, let date = item.captureDate,
                    index.contains(PhotosDB.dedupKey(originalFilename: name, captureDate: date)) {
