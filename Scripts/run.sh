@@ -35,7 +35,12 @@ wait_for_exit() {
     done
 }
 
-TTY_DEV="$(tty 2>/dev/null || true)"
+# `tty` prints the literal string "not a tty" to STDOUT on failure, so test the
+# file descriptor instead of trusting its output.
+TTY_DEV=""
+if [ -t 1 ]; then
+    TTY_DEV="$(tty)"
+fi
 if [ -n "$TTY_DEV" ]; then
     open --stdout "$TTY_DEV" --stderr "$TTY_DEV" ./SharedAlbumRescue.app --args "${ARGS[@]}"
     wait_for_exit
