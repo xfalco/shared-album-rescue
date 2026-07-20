@@ -61,6 +61,42 @@ bundled binary exec'd directly — with endless `NSCocoaErrorDomain Code=4097` C
 retries. Terminal choice matters for the one-time prompts too: Terminal.app showed them;
 iTerm2 silently didn't.
 
+## SOP: ongoing maintenance
+
+Shared albums are a living target (new albums and contributions appear weekly),
+so re-run the pipeline periodically — monthly, or after any big event album.
+From the repo root:
+
+```zsh
+BIN=.build/release/shared-album-rescue
+
+# 1. Is there anything new to secure?
+$BIN sync-status --shared-albums          # look at "NOT yet secured"
+
+# 2. If yes — secure it (all idempotent, safe to re-run):
+$BIN rescue                               # stage whatever is reachable locally
+./Scripts/run.sh download                 # fetch the rest from Apple (PhotoKit → needs the .app path)
+./Scripts/run.sh import --dry-run         # sanity-check the plan
+./Scripts/run.sh import                   # into the "SA – <album>" albums, ledger-dedup'd
+$BIN archive-comments                     # refresh the comments/likes archive
+
+# 3. Verify and back up:
+$BIN verify                               # exit 0 expected — see known-loss note below
+#    quit Photos → run BackupManager      # capture the grown library
+$BIN sync-status                          # later: confirm "Awaiting upload: 0"
+```
+
+Known permanent loss: `verify` reports **1** cloud-only asset —
+`IMG_4298.mp4` ("Mango banjo 🥭 best of", Nov 2022), a broken 1×1 record on
+Apple's side with no fetchable content. Only the original contributor can
+resurrect it. Treat "cloud-only = 1" as the healthy baseline.
+
+If step 3's upload count won't drain, do **not** restart daemons blindly — see
+[icloud-photos-doctor](https://github.com/xfalco/tech-utils/tree/main/icloud-photos-doctor)
+(and its SAGA.md) in tech-utils: it diagnoses stuck-vs-slow and encodes the
+hard-won escalation ladder, from waiting out the engine's burst interval to the
+iCloud Photos re-baseline toggle.
+
 ## Safety model
 
 - The live `Photos.sqlite` is **never opened directly** — the sqlite trio is copied to a
