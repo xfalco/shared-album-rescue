@@ -258,8 +258,8 @@ extension PhotosDB {
         return index
     }
 
-    static func dedupKey(originalFilename: String, captureDate: Date) -> String {
-        "\(originalFilename.lowercased())|\(Int64(captureDate.timeIntervalSinceReferenceDate))"
+    static func dedupKey(originalFilename: String, captureDate: Date, offsetSeconds: Int64 = 0) -> String {
+        "\(originalFilename.lowercased())|\(Int64(captureDate.timeIntervalSinceReferenceDate) + offsetSeconds)"
     }
 
     /// UUIDs of library assets iCloud could not sync (ZCLOUDLOCALSTATE = 4). On this
