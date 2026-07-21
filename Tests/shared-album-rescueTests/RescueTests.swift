@@ -39,6 +39,79 @@ struct StateStoreTests {
     }
 }
 
+struct WithinBatchDedupTests {
+    private func item(
+        guid: String, album: String, filename: String?, second: TimeInterval?, bytes: Int64 = 100
+    ) -> StagedItem {
+        StagedItem(
+            guid: guid, album: album, albumScopeID: "S", stagedPath: "staging/\(album)/\(guid).jpg",
+            pairedVideoPath: nil, originalFilename: filename,
+            captureDate: second.map { Date(timeIntervalSinceReferenceDate: $0) },
+            isVideo: false, contributor: nil, source: "live", bytes: bytes
+        )
+    }
+
+    @Test func samePhotoInTwoAlbumsCollapsesToOneImport() {
+        let (unique, aliases) = ImportCommand.collapseWithinBatchDuplicates([
+            item(guid: "G1", album: "Alpha", filename: "IMG_1.JPG", second: 700_000_000),
+            item(guid: "G2", album: "Beta", filename: "img_1.jpg", second: 700_000_000),
+        ])
+        #expect(unique.map(\.guid) == ["G1"])
+        #expect(aliases["G1"]?.map(\.guid) == ["G2"])
+    }
+
+    @Test func oneSecondJitterStillCollapses() {
+        let (unique, aliases) = ImportCommand.collapseWithinBatchDuplicates([
+            item(guid: "G1", album: "Alpha", filename: "IMG_1.JPG", second: 700_000_000),
+            item(guid: "G2", album: "Beta", filename: "IMG_1.JPG", second: 700_000_001),
+        ])
+        #expect(unique.count == 1)
+        #expect(aliases["G1"]?.count == 1)
+    }
+
+    @Test func distinctPhotosSurvive() {
+        let (unique, aliases) = ImportCommand.collapseWithinBatchDuplicates([
+            item(guid: "G1", album: "Alpha", filename: "IMG_1.JPG", second: 700_000_000),
+            item(guid: "G2", album: "Alpha", filename: "IMG_1.JPG", second: 700_000_005),
+            item(guid: "G3", album: "Alpha", filename: "IMG_2.JPG", second: 700_000_000),
+        ])
+        #expect(unique.count == 3)
+        #expect(aliases.isEmpty)
+    }
+
+    @Test func missingFilenameOrDateNeverCollapses() {
+        let (unique, aliases) = ImportCommand.collapseWithinBatchDuplicates([
+            item(guid: "G1", album: "Alpha", filename: nil, second: 700_000_000),
+            item(guid: "G2", album: "Alpha", filename: nil, second: 700_000_000),
+            item(guid: "G3", album: "Alpha", filename: "IMG_1.JPG", second: nil),
+            item(guid: "G4", album: "Alpha", filename: "IMG_1.JPG", second: nil),
+        ])
+        #expect(unique.count == 4)
+        #expect(aliases.isEmpty)
+    }
+
+    @Test func largestCopySurvives() {
+        // A full-resolution copy (or a surviving video vs its poster frame) wins
+        // regardless of album order.
+        let (unique, aliases) = ImportCommand.collapseWithinBatchDuplicates([
+            item(guid: "G1", album: "Alpha", filename: "IMG_1.JPG", second: 700_000_000, bytes: 500),
+            item(guid: "G2", album: "Beta", filename: "IMG_1.JPG", second: 700_000_000, bytes: 9_000),
+        ])
+        #expect(unique.map(\.guid) == ["G2"])
+        #expect(aliases["G2"]?.map(\.guid) == ["G1"])
+    }
+
+    @Test func survivorsKeepAlbumGuidOrder() {
+        let (unique, _) = ImportCommand.collapseWithinBatchDuplicates([
+            item(guid: "G3", album: "Beta", filename: "IMG_3.JPG", second: 700_000_300),
+            item(guid: "G1", album: "Alpha", filename: "IMG_1.JPG", second: 700_000_000),
+            item(guid: "G2", album: "Alpha", filename: "IMG_1.JPG", second: 700_000_000),
+            item(guid: "G4", album: "Alpha", filename: nil, second: nil),
+        ])
+        #expect(unique.map(\.guid) == ["G1", "G4", "G3"])
+    }
+}
+
 /// Pins the SQL column expectations against a minimal fixture database using the
 /// schema-5001 shapes documented in PhotosDB.swift.
 struct PhotosDBTests {
