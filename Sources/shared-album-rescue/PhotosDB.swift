@@ -262,6 +262,15 @@ extension PhotosDB {
         "\(originalFilename.lowercased())|\(Int64(captureDate.timeIntervalSinceReferenceDate))"
     }
 
+    /// UUIDs of library assets iCloud could not sync (ZCLOUDLOCALSTATE = 4). On this
+    /// setup these turned out to be within-batch duplicate imports from the rescue tool.
+    func unsyncableUUIDs() throws -> [String] {
+        try query("""
+            SELECT ZUUID FROM ZASSET
+            WHERE ZBUNDLESCOPE = 0 AND ZTRASHEDSTATE = 0 AND ZCLOUDLOCALSTATE = 4
+            """) { $0.string(0) ?? "" }.filter { !$0.isEmpty }
+    }
+
     func sharedComments() throws -> [SharedComment] {
         try query("""
             SELECT c.ZISLIKE, c.ZISCAPTION, c.ZISMYCOMMENT, c.ZCOMMENTDATE, c.ZCOMMENTTEXT,

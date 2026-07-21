@@ -15,6 +15,7 @@ struct SharedAlbumRescue: AsyncParsableCommand {
             ArchiveComments.self,
             Verify.self,
             SyncStatus.self,
+            GroupUnsyncable.self,
         ],
         defaultSubcommand: Scan.self
     )
